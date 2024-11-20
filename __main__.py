@@ -11,6 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from tgbot import handlers
 from tgbot.data import config
+from tgbot.handlers.commands import router
 
 
 def setup_logging():
@@ -59,7 +60,7 @@ async def main():
     dp = Dispatcher(
         storage=storage,
     )
-
+    dp.include_router(router=router)
     dp.startup.register(aiogram_on_startup_polling)
     dp.shutdown.register(aiogram_on_shutdown_polling)
 
@@ -67,4 +68,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nGoodbye!")
