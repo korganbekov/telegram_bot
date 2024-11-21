@@ -20,21 +20,7 @@ from tgbot.database.models import Url
 import tgbot.database.requests as rq
 import tgbot.keyboards.keyboards as kb
 
-
 router = Router()
-
-
-template_entry = {
-    'url':None,
-    'title':None,
-    'category': None,
-    'priority': None,
-    'source': None,
-    'telegram_user_id': None,
-    'timestamp': None
-}
-data = []
-# user = {'id': None, 'tg_id': None, 'name': None, 'full_name': None}
 
 # Регулярное выражение для поиска URL
 url_pattern = r'https?://(?:www\.)?[^\s/$.?#].[^\s]*'
@@ -61,19 +47,20 @@ CATEGORIES = {
     "Почта": [r"gmail\.com", r"mail\.ru", r"hotmail\.*"],
 }
 
+_source_info = None
+_category = None
+_priority = None
+_user = None
+
+_message = None
 
 @router.message(CommandStart())
 async def start_command_handler(message: types.Message):
     user = await __get_user(message=message)
+    _user = user
     greeting_text = f"С возвращением, {user.name}! Чем могу помочь?"
     await message.answer(greeting_text, reply_markup=kb.main)
 
-
-@router.callback_query(F.data.startswith('to_main'))
-async def to_main(message: types.Message):
-    user = await __get_user(message=message)
-    greeting_text = f"С возвращением, {user.name}! Чем могу помочь?"
-    await message.answer(greeting_text, reply_markup=kb.main)
 
 @router.message(F.text == "Категории")
 async def categories(message: types.Message):
@@ -87,7 +74,7 @@ async def priorities(message: types.Message):
 @router.callback_query(F.data.startswith('category_'))
 async def category(callback: CallbackQuery):
     await callback.answer('Вы выбрали категорию')
-    await callback.answer(callback.data)
+    # await callback.answer(callback.data)
     # logging.error(f"comands.category. callback_data={callback.data}")
     await callback.message.answer(text='Выберите url по категории',
                                   reply_markup=await kb.urls_by_category(callback.data.split('_')[1]))
@@ -96,73 +83,79 @@ async def category(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('priority_'))
 async def priority(callback: CallbackQuery):
     await callback.answer('Вы выбрали приоритет')
-    await callback.answer(callback.data)
+    # await callback.answer(callback.data)
     # logging.error(f"comands.category. callback_data={callback.data}")
     await callback.message.answer(text='Выберите url по приоритету',
                                   reply_markup=await kb.urls_by_priority(callback.data.split('_')[1]))
 
 
+@router.callback_query(F.data.startswith("save_url_"))
+async def save_url(callback: CallbackQuery):
+    logging.error(f"save_url.callback.data: {callback.data}")
+    url = callback.data.split("_")[2]
+
+    user = _user
+    title = await __fetch_page_title(url)
+    timestamp_utc = int(datetime.now(timezone.utc).timestamp())
+    # source_info, category, proirity = await __get_source_info_category_priority(message=callback.message)
+
+    source_info = _source_info
+    category = _category
+    priority = _priority
+
+    _url = Url()
+    _url.user = user.tg_id
+    _url.priority = priority
+    _url.category = category
+    _url.title = title
+    _url.url = url
+    _url.source = source_info
+    _url.timestamp = timestamp_utc
+
+    await __save_data(_url)
+
+    await callback.answer(f"Ссылка сохранена: {url}")
+
+
+@router.callback_query(F.data == "cancel_save")
+async def cancel_save(callback: CallbackQuery):
+    await callback.message.edit_text("Сохранение отменено.")
+    await callback.answer()
+
 # Обработчик для любых сообщений
 @router.message()
 async def handle_any_message(message: types.Message):
+    global _message
+    global _source_info
+    global _category
+    global _priority
+
+    global _user
+
     # Найти все URL в тексте
     urls = re.findall(url_pattern, message.text)
     if not urls:
         await message.answer("Ссылка не найдена в сообщении.")
         return
 
-    user = await __get_user(message=message)
+    _source_info, _category, _priority = await __get_source_info_category_priority(message=message)
+    _user = await __get_user(message=message)
+    _message = message
 
-    titles = []
-    for url in urls:
-        # Получить заголовок страницы
-        title = await __fetch_page_title(url)
-        titles.append(f"{url} — {title}")
-
-        # Получение текущего времени в UTC
-        timestamp_utc = int(datetime.now(timezone.utc).timestamp())
-        source_info, category, proirity = await __get_source_info_category_priority(message=message)
-
-        entry = copy.deepcopy(template_entry)
-        entry['guid'] = str(uuid.uuid4())
-        entry['url'] = url
-        entry['title'] = title
-        entry['source'] = source_info
-        entry['timestamp'] = timestamp_utc
-        entry['tg_id'] = user.tg_id
-        entry['user_name'] = user.name
-        entry['category'] = category
-        entry['priority'] = proirity
-
-        _url = Url()
-        _url.user = user.tg_id
-        _url.priority = proirity
-        _url.category = category
-        _url.title = title
-        _url.url = url
-        _url.source = source_info
-        _url.timestamp = timestamp_utc
-
-        await __save_data(_url, entry)
-
-    with open('result.json', 'w', encoding='utf-8') as outfile:
-        json.dump(data, outfile)
-
-    await message.answer(str(data))
+    # Отправить сообщение с кнопками
+    await message.answer("Выберите ссылки для сохранения:", reply_markup=await kb.urls_to_save(urls))
 
 
-async def __save_data(url, entry):
-    global data
+
+async def __save_data(url):
     try:
         await rq.save_url(url)
-        message = f"url: {entry['url']}, title: {entry['title']} is saved to DB"
+        message = f"url: {url.url}, title: {url.title} is saved to DB"
         logging.info(message)
-        data.append(entry)
     except Exception as e:
-        message = f"url: {entry['url']}, title: {entry['title']} is not saved to DB"
+        message = f"url: {url.url}, title: {url.title} is not saved to DB"
         logging.error(message)
 
-    return data
 
 async def __fetch_page_title(url: str) -> str:
     try:
@@ -211,7 +204,9 @@ async def __get_source_info_category_priority(message: types.Message):
             source_info = "Источник пересылки неизвестен или скрыт."
             category = await rq.get_category(3)
             priority = await rq.get_priority(3)
+
     return source_info, category.id, priority.id
+
 
 def __detect_social_media_link(text: str):
     for key, category_entry in CATEGORIES.items():
@@ -223,5 +218,5 @@ def __detect_social_media_link(text: str):
 async def __get_user(message: types.Message):
     user = await rq.get_user(message.from_user.id)
     name = user.name
-    # logging.info(name)
+    logging.info(f"name: {name}")
     return user

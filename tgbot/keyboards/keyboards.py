@@ -65,3 +65,14 @@ async def urls_by_priority(priority_id):
 
     # тут показывает что в одном ряду д.б. 2 клавиатуры
     return keyboard.adjust(1).as_markup()
+
+
+async def urls_to_save(urls):
+    keyboard = InlineKeyboardBuilder()
+    for idx, url in enumerate(urls):
+        keyboard.add(InlineKeyboardButton(text=f"Сохранить: {url}", callback_data=f"save_url_{url}"))
+
+        # Добавить кнопку для отмены сохранения
+    # keyboard.add(InlineKeyboardButton(text="Отмена", callback_data="cancel_save"))
+
+    return keyboard.adjust(1).as_markup()

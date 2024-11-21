@@ -138,3 +138,4 @@ credentials.json
 main.py
 cache
 result.json
+/tgbot/handlers/commands_old.py
