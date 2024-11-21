@@ -63,18 +63,24 @@ CATEGORIES = {
 
 
 @router.message(CommandStart())
-async def start_command_handler(message: types.Message, state: FSMContext):
+async def start_command_handler(message: types.Message):
     user = await __get_user(message=message)
     greeting_text = f"С возвращением, {user.name}! Чем могу помочь?"
     await message.answer(greeting_text, reply_markup=kb.main)
 
+
+@router.callback_query(F.data.startswith('to_main'))
+async def to_main(message: types.Message):
+    user = await __get_user(message=message)
+    greeting_text = f"С возвращением, {user.name}! Чем могу помочь?"
+    await message.answer(greeting_text, reply_markup=kb.main)
 
 @router.message(F.text == "Категории")
 async def categories(message: types.Message):
     await message.answer(text='Выберите категорию', reply_markup=await kb.categories())
 
 @router.message(F.text == "Приоритеты")
-async def categories(message: types.Message):
+async def priorities(message: types.Message):
     await message.answer(text='Выберите приоритет', reply_markup=await kb.priorities())
 
 
@@ -82,7 +88,7 @@ async def categories(message: types.Message):
 async def category(callback: CallbackQuery):
     await callback.answer('Вы выбрали категорию')
     await callback.answer(callback.data)
-    logging.error(f"comands.category. callback_data={callback.data}")
+    # logging.error(f"comands.category. callback_data={callback.data}")
     await callback.message.answer(text='Выберите url по категории',
                                   reply_markup=await kb.urls_by_category(callback.data.split('_')[1]))
 
@@ -91,7 +97,7 @@ async def category(callback: CallbackQuery):
 async def priority(callback: CallbackQuery):
     await callback.answer('Вы выбрали приоритет')
     await callback.answer(callback.data)
-    logging.error(f"comands.category. callback_data={callback.data}")
+    # logging.error(f"comands.category. callback_data={callback.data}")
     await callback.message.answer(text='Выберите url по приоритету',
                                   reply_markup=await kb.urls_by_priority(callback.data.split('_')[1]))
 
@@ -163,7 +169,7 @@ async def __fetch_page_title(url: str) -> str:
         # Асинхронная загрузка страницы
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                logging.error(f"url: {url}, response.status: {response.status}")
+                # logging.error(f"url: {url}, response.status: {response.status}")
                 if response.status == 200:
                     # Парсинг HTML с помощью BeautifulSoup
                     html = await response.text()
@@ -217,5 +223,5 @@ def __detect_social_media_link(text: str):
 async def __get_user(message: types.Message):
     user = await rq.get_user(message.from_user.id)
     name = user.name
-    logging.info(name)
+    # logging.info(name)
     return user

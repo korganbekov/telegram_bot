@@ -56,7 +56,7 @@ async def get_urls_by_priority(id):
 
 
 async def get_urls(filter):
-    logging.info(f'requests.get_urls({filter})')
+    # logging.info(f'requests.get_urls({filter})')
     async with async_session() as session:
         conditions = [
             getattr(Url, key) == value
@@ -66,7 +66,7 @@ async def get_urls(filter):
 
         query = select(Url).where(and_(*conditions)) if conditions else select(Url)
         result = await session.scalars(query)
-        logging.info(f'requests.get_urls. len(result): {len(result.all())}')
+        # logging.info(f'requests.get_urls. len(result): {len(result.all())}')
         return result.all()
 
 
