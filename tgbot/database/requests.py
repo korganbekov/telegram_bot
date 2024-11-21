@@ -3,7 +3,7 @@ import logging
 from tgbot.database.models import async_session
 from tgbot.database.models import User, Category, Url, Priority
 
-from sqlalchemy import select, update, delete, and_
+from sqlalchemy import select, and_
 
 
 async def get_categories():

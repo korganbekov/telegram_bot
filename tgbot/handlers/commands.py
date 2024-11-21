@@ -61,18 +61,15 @@ CATEGORIES = {
 
 @router.message(CommandStart())
 async def start_command_handler(message: types.Message, state: FSMContext):
-    # global user
     user = await __get_user(message=message)
-
     greeting_text = f"С возвращением, {user.name}! Чем могу помочь?"
 
     await message.answer(greeting_text)
 
+
 # Обработчик для любых сообщений
 @router.message()
 async def handle_any_message(message: types.Message):
-    global data
-
     # Найти все URL в тексте
     urls = re.findall(url_pattern, message.text)
     if not urls:
@@ -110,35 +107,34 @@ async def handle_any_message(message: types.Message):
         _url.url = url
         _url.source = source_info
         _url.timestamp = timestamp_utc
-        # logging.info(f"type(url): {type(url)}")
-        logging.info(f"url.url: {_url.url}")
-        # data.append(entry)
+
         await __save_data(_url, entry)
-        # await __save_data(entry=entry)
 
     with open('result.json', 'w', encoding='utf-8') as outfile:
         json.dump(data, outfile)
 
-    # Ответ пользователю
-    # await message.answer("\n".join(titles))
     await message.answer(str(data))
 
 
 async def __save_data(url, entry):
-    await rq.save_url(url)
-
     global data
-    data.append(entry)
-    message = f"url: {entry['url']}, title: {entry['title']} is saved to DB"
-    await __log_saved_url(text=message)
+    try:
+        await rq.save_url(url)
+        message = f"url: {entry['url']}, title: {entry['title']} is saved to DB"
+        logging.info(message)
+        data.append(entry)
+    except Exception as e:
+        message = f"url: {entry['url']}, title: {entry['title']} is not saved to DB"
+        logging.error(message)
 
+    return data
 
 async def __fetch_page_title(url: str) -> str:
     try:
         # Асинхронная загрузка страницы
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                # logging.error(f"url: {url}, response.status: {response.status}")
+                logging.error(f"url: {url}, response.status: {response.status}")
                 if response.status == 200:
                     # Парсинг HTML с помощью BeautifulSoup
                     html = await response.text()
@@ -189,32 +185,8 @@ def __detect_social_media_link(text: str):
                 return key
     return None
 
-    # for platform, pattern in SOCIAL_MEDIA_PATTERNS.items():
-    #     if re.search(pattern, text):
-    #         return platform
-    #
-    # return None
-
-
 async def __get_user(message: types.Message):
     user = await rq.get_user(message.from_user.id)
     name = user.name
     logging.info(name)
     return user
-    """
-    user = {}
-    from_user = message.from_user
-    from_user_id = message.from_user.id
-    user['guid'] = str(uuid.uuid4())
-    user['tg_id'] = from_user_id
-    user['name'] = from_user
-    user['full_name'] = from_user.full_name
-    return user
-    """
-
-# Функция для отправки логов в канал
-async def __log_saved_url(text: str):
-    try:
-        logging.info(f"Лог отправлен: {text}")
-    except Exception as e:
-        logging.error(f"Ошибка отправки лога: {e}")
