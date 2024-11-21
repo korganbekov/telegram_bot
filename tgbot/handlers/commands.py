@@ -80,8 +80,8 @@ async def handle_any_message(message: types.Message):
         entry['guid'] = str(uuid.uuid4())
         entry['url'] = url
         entry['title'] = title
-        # entry['source'] = source_info
-        entry['source'] = entry['source']
+        entry['source'] = source_info
+        # entry['source'] = entry['source']
         entry['timestamp'] = timestamp_utc
         entry['telegram_user_id'] = user['tg_id']
         entry['full_name'] = user['full_name']
@@ -125,7 +125,7 @@ async def __fetch_page_title(url: str) -> str:
 
 async def __get_source_info(message: types.Message):
     if message.forward_from:  # Если сообщение переслано от пользователя
-        # user = message.forward_from
+        user = message.forward_from
         source_info = f"Сообщение переслано от пользователя:\n" \
                       f"- Имя: {user.full_name}\n" \
                       f"- Username: @{user.username}\n" \
