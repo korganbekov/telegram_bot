@@ -22,6 +22,27 @@ async def get_category(id=3):
             category = await session.scalar(select(Category).where(Category.id == 3))
         return category
 
+async def get_category_by_text(category_text):
+    async with async_session() as session:
+        category = await session.scalar(select(Category).where(Category.category == category_text))
+        if not category:
+            category = await session.scalar(select(Category).where(Category.id == 3))
+        return category
+
+async def get_priority(id=3):
+    async with async_session() as session:
+        priority = await session.scalar(select(Priority).where(Priority.id == id))
+        if not priority:
+            priority = await session.scalar(select(Category).where(Priority.id == 3))
+        return priority
+
+async def get_priority_by_text(priority_text):
+    async with async_session() as session:
+        priority = await session.scalar(select(Priority).where(Priority.priority == priority_text))
+        if not priority:
+            priority = await session.scalar(select(Category).where(Priority.id == 3))
+        return priority
+
 async def get_user(tg_id):
     async with async_session() as session:
         user = await session.scalar(select(User).where(User.tg_id == tg_id))
@@ -33,12 +54,7 @@ async def get_user(tg_id):
 
         return user
 
-async def get_priority(id=3):
-    async with async_session() as session:
-        priority = await session.scalar(select(Priority).where(Priority.id == id))
-        if not priority:
-            priority = await session.scalar(select(Category).where(Priority.id == 3))
-        return priority
+
 
 
 async def get_url(id):
@@ -71,14 +87,25 @@ async def get_urls(filter):
 
 
 async def save_url(url: Url):
-    async with async_session() as session:
-        logging.info(f"url.id: {url.id}, "
-                     f"url.title: {url.title}, "
-                     f"url.user {url.user}, "
-                     f"url.name: {url.url}, "
-                     f"url.source: {url.source}, "
-                     f"url.category: {url.category}, "
-                     f"url.priority: {url.priority}, "
-                     f"url.timestamp={url.timestamp}")
-        session.add(url)
-        await session.commit()
+    logging.warning('save_url')
+    try:
+        async with (async_session() as session):
+            logging.warning('save_url_1')
+            logging.info(f"url.id: {url.id}")
+            logging.info(f"url.title: {url.title})")
+            logging.info(f"url.user {url.user}")
+            logging.info(f"url.name: {url.url}")
+            logging.info(f"url.source: {url.source}")
+            logging.info(f"url.category: {url.category}, ")
+            logging.info(f"url.priority: {url.priority}, ")
+            logging.info(f"url.timestamp={url.timestamp}")
+
+            session.add(url)
+            await session.commit()
+            # message = f"url: {url.url}, title: {url.title} is saved to DB"
+            # logging.info(message)
+            return True
+    except Exception as e:
+        # message = f"url: {url.url}, title: {url.title} is not saved to DB"
+        # logging.error(message)
+        return False

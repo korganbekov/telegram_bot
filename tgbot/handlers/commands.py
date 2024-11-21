@@ -19,6 +19,7 @@ from aiogram import F
 from tgbot.database.models import Url
 import tgbot.database.requests as rq
 import tgbot.keyboards.keyboards as kb
+from tgbot.llm.llm import predict_category_and_priority
 
 router = Router()
 
@@ -102,17 +103,24 @@ async def save_url(callback: CallbackQuery):
     source_info = _source_info
     category = _category
     priority = _priority
+    str_category, str_priority = await predict_category_and_priority(title)
 
+    category = await rq.get_category_by_text(str_category)
+    priority = await rq.get_priority_by_text(str_priority)
+
+    logging.error(f"save_url.URL: {url}\nКатегория Str: {category}\nПриоритет Str: {priority}")
+    logging.error(f"save_url.URL: {url}\nКатегория: {category.category}\nПриоритет: {priority.priority}")
+    logging.error(f"save_url.URL: {url}\nКатегория.Id: {category.id}\nПриоритет.Id: {priority.id}")
     _url = Url()
     _url.user = user.tg_id
-    _url.priority = priority
-    _url.category = category
+    _url.priority = priority.id
+    _url.category = category.id
     _url.title = title
     _url.url = url
     _url.source = source_info
     _url.timestamp = timestamp_utc
 
-    await __save_data(_url)
+    await rq.save_url(_url)
 
     await callback.answer(f"Ссылка сохранена: {url}")
 
@@ -144,17 +152,6 @@ async def handle_any_message(message: types.Message):
 
     # Отправить сообщение с кнопками
     await message.answer("Выберите ссылки для сохранения:", reply_markup=await kb.urls_to_save(urls))
-
-
-
-async def __save_data(url):
-    try:
-        await rq.save_url(url)
-        message = f"url: {url.url}, title: {url.title} is saved to DB"
-        logging.info(message)
-    except Exception as e:
-        message = f"url: {url.url}, title: {url.title} is not saved to DB"
-        logging.error(message)
 
 
 async def __fetch_page_title(url: str) -> str:
