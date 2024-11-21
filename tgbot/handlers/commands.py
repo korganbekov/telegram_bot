@@ -14,7 +14,13 @@ from aiogram import types
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 
+from tgbot.database.models import Url
+
 router = Router()
+
+import tgbot.database.requests as rq
+
+
 template_entry = {
     'url':None,
     'title':None,
@@ -43,12 +49,13 @@ SOCIAL_MEDIA_PATTERNS = {
 
 # Словарь категорий и соответствующих паттернов
 CATEGORIES = {
-    "Социальные сети": [r"instagram\.com", r"facebook\.com", r"twitter\.com", r"tiktok\.com"],
+    "Социальные сети": [r"instagram\.com", r"facebook\.com", r"twitter\.com", r"tiktok\.com", r"vk\.*"],
     "Видео": [r"youtube\.com", r"vimeo\.com", r"twitch\.tv"],
     "Новостные сайты": [r"bbc\.com", r"cnn\.com"],
     "Интернет-магазины": [r"amazon\.com", r"ebay\.com", r"wildberries\.ru"],
-    "Образование": [r"coursera\.org", r"wikipedia\.org"],
+    "Образование": [r"coursera\.org", r"wikipedia\.org", r"udemy\.com"],
     "Файловые хранилища": [r"drive\.google\.com", r"dropbox\.com", r"yadi\.sk"],
+    "Почта": [r"gmail\.com", r"mail\.ru", r"hotmail\.*"],
 }
 
 
@@ -57,7 +64,7 @@ async def start_command_handler(message: types.Message, state: FSMContext):
     # global user
     user = await __get_user(message=message)
 
-    greeting_text = f"С возвращением, {user['full_name']}! Чем могу помочь?"
+    greeting_text = f"С возвращением, {user.name}! Чем могу помочь?"
 
     await message.answer(greeting_text)
 
@@ -65,11 +72,6 @@ async def start_command_handler(message: types.Message, state: FSMContext):
 @router.message()
 async def handle_any_message(message: types.Message):
     global data
-    # global user
-
-    # if user.get('tg_id') is None:
-
-    user = await __get_user(message=message)
 
     # Найти все URL в тексте
     urls = re.findall(url_pattern, message.text)
@@ -77,6 +79,7 @@ async def handle_any_message(message: types.Message):
         await message.answer("Ссылка не найдена в сообщении.")
         return
 
+    user = await __get_user(message=message)
 
     titles = []
     for url in urls:
@@ -86,7 +89,7 @@ async def handle_any_message(message: types.Message):
 
         # Получение текущего времени в UTC
         timestamp_utc = int(datetime.now(timezone.utc).timestamp())
-        source_info = await __get_source_info(message=message)
+        source_info, category, proirity = await __get_source_info_category_priority(message=message)
 
         entry = copy.deepcopy(template_entry)
         entry['guid'] = str(uuid.uuid4())
@@ -94,13 +97,24 @@ async def handle_any_message(message: types.Message):
         entry['title'] = title
         entry['source'] = source_info
         entry['timestamp'] = timestamp_utc
-        entry['telegram_user_id'] = user['tg_id']
-        entry['full_name'] = user['full_name']
-        entry['category'] = entry['category']
-        entry['priority'] = entry['priority']
+        entry['tg_id'] = user.tg_id
+        entry['user_name'] = user.name
+        entry['category'] = category
+        entry['priority'] = proirity
 
+        _url = Url()
+        _url.user = user.tg_id
+        _url.priority = proirity
+        _url.category = category
+        _url.title = title
+        _url.url = url
+        _url.source = source_info
+        _url.timestamp = timestamp_utc
+        # logging.info(f"type(url): {type(url)}")
+        logging.info(f"url.url: {_url.url}")
         # data.append(entry)
-        await __save_data(entry=entry)
+        await __save_data(_url, entry)
+        # await __save_data(entry=entry)
 
     with open('result.json', 'w', encoding='utf-8') as outfile:
         json.dump(data, outfile)
@@ -110,7 +124,9 @@ async def handle_any_message(message: types.Message):
     await message.answer(str(data))
 
 
-async def __save_data(entry):
+async def __save_data(url, entry):
+    await rq.save_url(url)
+
     global data
     data.append(entry)
     message = f"url: {entry['url']}, title: {entry['title']} is saved to DB"
@@ -122,6 +138,7 @@ async def __fetch_page_title(url: str) -> str:
         # Асинхронная загрузка страницы
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
+                # logging.error(f"url: {url}, response.status: {response.status}")
                 if response.status == 200:
                     # Парсинг HTML с помощью BeautifulSoup
                     html = await response.text()
@@ -134,45 +151,57 @@ async def __fetch_page_title(url: str) -> str:
         print(f"Ошибка при обработке {url}: {e}")
         return None
 
-async def __get_source_info(message: types.Message):
+async def __get_source_info_category_priority(message: types.Message):
     if message.forward_from:  # Если сообщение переслано от пользователя
         user = message.forward_from
         source_info = f"Сообщение переслано от пользователя:\n" \
                 f"- Имя: {user.full_name}\n" \
                 f"- Username: @{user.username}\n" \
-                f"- ID: {user.id}\n" \
-                f"- Category: Telegram\n" \
-                f"- Priority: 1"
+                f"- ID: {user.id}"
+        category = await rq.get_category(1)
+        priority = await rq.get_priority(1)
     elif message.forward_from_chat:  # Если сообщение переслано из канала или группы
         chat = message.forward_from_chat
         source_type = "канала" if chat.type == "channel" else "группы"
         source_info = f"Сообщение переслано из {source_type}:\n" \
                 f"- Название: {chat.title}\n" \
                 f"- Username: @{chat.username if chat.username else 'отсутствует'}\n" \
-                f"- ID: {chat.id}"\
-                f"- Category: Telegram\n" \
-                f"- Priority: 2"
+                f"- ID: {chat.id}"
+        category = await rq.get_category(1)
+        priority = await rq.get_priority(1)
     else:
         social_network_type = __detect_social_media_link(text=message.text)
         if social_network_type:
-            source_info = f"{social_network_type}\n"\
-                f"- Category: SocialNetwork\n" \
-                f"- Priority: 3"
+            source_info = f"{social_network_type}"
+            category = await rq.get_category(2)
+            priority = await rq.get_priority(2)
 
         else:  # Если информация о пересылке недоступна
             source_info = "Источник пересылки неизвестен или скрыт."
-
-    return source_info
+            category = await rq.get_category(3)
+            priority = await rq.get_priority(3)
+    return source_info, category.id, priority.id
 
 def __detect_social_media_link(text: str):
-    for platform, pattern in SOCIAL_MEDIA_PATTERNS.items():
-        if re.search(pattern, text):
-            return platform
-
+    for key, category_entry in CATEGORIES.items():
+        for entry in category_entry:
+            if re.search(entry, text):
+                return key
     return None
+
+    # for platform, pattern in SOCIAL_MEDIA_PATTERNS.items():
+    #     if re.search(pattern, text):
+    #         return platform
+    #
+    # return None
 
 
 async def __get_user(message: types.Message):
+    user = await rq.get_user(message.from_user.id)
+    name = user.name
+    logging.info(name)
+    return user
+    """
     user = {}
     from_user = message.from_user
     from_user_id = message.from_user.id
@@ -181,6 +210,7 @@ async def __get_user(message: types.Message):
     user['name'] = from_user
     user['full_name'] = from_user.full_name
     return user
+    """
 
 # Функция для отправки логов в канал
 async def __log_saved_url(text: str):

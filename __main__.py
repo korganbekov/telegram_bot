@@ -11,6 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from tgbot import handlers
 from tgbot.data import config
+from tgbot.database.models import async_main
 from tgbot.handlers.commands import router
 
 
@@ -45,6 +46,10 @@ async def aiogram_on_shutdown_polling(dispatcher: Dispatcher, bot: Bot) -> None:
 
 async def main():
     setup_logging()
+
+    await async_main()
+    # asyncio.run(async_main())
+
     session = AiohttpSession(
         json_loads=orjson.loads,
     )
