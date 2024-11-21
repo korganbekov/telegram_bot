@@ -30,6 +30,17 @@ user = {'id': None, 'tg_id': None, 'name': None, 'full_name': None}
 # Регулярное выражение для поиска URL
 url_pattern = r'https?://(?:www\.)?[^\s/$.?#].[^\s]*'
 
+# Регулярные выражения для распознавания ссылок соцсетей
+SOCIAL_MEDIA_PATTERNS = {
+    "YouTube": r"(https?://)?(www\.)?(youtube\.com|youtu\.be)/",
+    "Instagram": r"(https?://)?(www\.)?instagram\.com/",
+    "Twitter": r"(https?://)?(www\.)?twitter\.com/",
+    "Facebook": r"(https?://)?(www\.)?facebook\.com/",
+    "TikTok": r"(https?://)?(www\.)?tiktok\.com/",
+    "VK": r"(https?://)?(www\.)?vk\.com/",
+    "Telegram": r"(https?://)?(t\.me|telegram\.me)/"
+}
+
 @router.message(CommandStart())
 async def start_command_handler(message: types.Message, state: FSMContext):
     global user
@@ -57,17 +68,6 @@ async def handle_any_message(message: types.Message):
 
     titles = []
     for url in urls:
-        """
-        template_entry = {
-    'url':None,
-    'title':None,
-    'category': None,
-    'priority': None,
-    'source': None,
-    'telegram_user_id': None,
-    'timestamp': None
-}
-        """
         # Получить заголовок страницы
         title = await __fetch_page_title(url)
         titles.append(f"{url} — {title}")
@@ -81,7 +81,6 @@ async def handle_any_message(message: types.Message):
         entry['url'] = url
         entry['title'] = title
         entry['source'] = source_info
-        # entry['source'] = entry['source']
         entry['timestamp'] = timestamp_utc
         entry['telegram_user_id'] = user['tg_id']
         entry['full_name'] = user['full_name']
@@ -103,7 +102,7 @@ async def __save_data(entry):
     global data
     data.append(entry)
     message = f"url: {entry['url']}, title: {entry['title']} is saved to DB"
-    await __log_saved_url(message=message)
+    await __log_saved_url(text=message)
 
 
 async def __fetch_page_title(url: str) -> str:
@@ -137,10 +136,27 @@ async def __get_source_info(message: types.Message):
                       f"- Название: {chat.title}\n" \
                       f"- Username: @{chat.username if chat.username else 'отсутствует'}\n" \
                       f"- ID: {chat.id}"
-    else:  # Если информация о пересылке недоступна
-        source_info = "Источник пересылки неизвестен или скрыт."
+    else:
+        social_network_type = __detect_social_media_link(text=message.text)
+        if social_network_type:
+            source_info = social_network_type
+
+        else:  # Если информация о пересылке недоступна
+            source_info = "Источник пересылки неизвестен или скрыт."
 
     return source_info
+
+def __detect_social_media_link(text: str):
+    """
+    Определяет наличие ссылок из популярных соцсетей в тексте.
+    Возвращает список найденных источников.
+    """
+    for platform, pattern in SOCIAL_MEDIA_PATTERNS.items():
+        if re.search(pattern, text):
+            return platform
+
+    return None
+
 
 async def __get_user(message: types.Message):
     user = {}
@@ -153,8 +169,8 @@ async def __get_user(message: types.Message):
     return user
 
 # Функция для отправки логов в канал
-async def __log_saved_url(message: str):
+async def __log_saved_url(text: str):
     try:
-        logging.info(f"Лог отправлен: {message}")
+        logging.info(f"Лог отправлен: {text}")
     except Exception as e:
         logging.error(f"Ошибка отправки лога: {e}")
