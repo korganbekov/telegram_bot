@@ -17,17 +17,26 @@ class User(Base):
     tg_id: Mapped[int] = mapped_column(BigInteger)
 
 
-class SocialNetwork(Base):
-    __tablename__ = 'social_networks'
+class Category(Base):
+    __tablename__ = 'categories'
     id: Mapped[int] = mapped_column(primary_key=True)
-    source: Mapped[str] = mapped_column(String[100])
+    category: Mapped[str] = mapped_column(String(30))
 
+class Priority(Base):
+    __tablename__ = 'priorities'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    priority: Mapped[int] = mapped_column(String(30))
 
 class Url(Base):
     __tablename__ = 'urls'
     id: Mapped[int] = mapped_column(primary_key=True)
-    value: Mapped[str] = mapped_column(String(25))
-    user: Mapped[int] = mapped_column(ForeignKey('user.id'))
+    url: Mapped[str] = mapped_column(String(100))
+    title: Mapped[str] = mapped_column(String(100))
+    category: Mapped[int] = mapped_column(ForeignKey('categories.id'))
+    priority: Mapped[int] = mapped_column(ForeignKey('priority.id'))
+    source: Mapped[str] = mapped_column(String(100))
+    user: Mapped[int] = mapped_column(ForeignKey('user.tg_id'))
+    timestamp: Mapped[int]
 
 
 async def async_main():

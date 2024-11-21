@@ -25,7 +25,7 @@ template_entry = {
     'timestamp': None
 }
 data = []
-user = {'id': None, 'tg_id': None, 'name': None, 'full_name': None}
+# user = {'id': None, 'tg_id': None, 'name': None, 'full_name': None}
 
 # Регулярное выражение для поиска URL
 url_pattern = r'https?://(?:www\.)?[^\s/$.?#].[^\s]*'
@@ -41,9 +41,20 @@ SOCIAL_MEDIA_PATTERNS = {
     "Telegram": r"(https?://)?(t\.me|telegram\.me)/"
 }
 
+# Словарь категорий и соответствующих паттернов
+CATEGORIES = {
+    "Социальные сети": [r"instagram\.com", r"facebook\.com", r"twitter\.com", r"tiktok\.com"],
+    "Видео": [r"youtube\.com", r"vimeo\.com", r"twitch\.tv"],
+    "Новостные сайты": [r"bbc\.com", r"cnn\.com"],
+    "Интернет-магазины": [r"amazon\.com", r"ebay\.com", r"wildberries\.ru"],
+    "Образование": [r"coursera\.org", r"wikipedia\.org"],
+    "Файловые хранилища": [r"drive\.google\.com", r"dropbox\.com", r"yadi\.sk"],
+}
+
+
 @router.message(CommandStart())
 async def start_command_handler(message: types.Message, state: FSMContext):
-    global user
+    # global user
     user = await __get_user(message=message)
 
     greeting_text = f"С возвращением, {user['full_name']}! Чем могу помочь?"
@@ -54,10 +65,11 @@ async def start_command_handler(message: types.Message, state: FSMContext):
 @router.message()
 async def handle_any_message(message: types.Message):
     global data
-    global user
+    # global user
 
-    if user.get('tg_id') is None:
-        user = await __get_user(message=message)
+    # if user.get('tg_id') is None:
+
+    user = await __get_user(message=message)
 
     # Найти все URL в тексте
     urls = re.findall(url_pattern, message.text)
@@ -126,20 +138,26 @@ async def __get_source_info(message: types.Message):
     if message.forward_from:  # Если сообщение переслано от пользователя
         user = message.forward_from
         source_info = f"Сообщение переслано от пользователя:\n" \
-                      f"- Имя: {user.full_name}\n" \
-                      f"- Username: @{user.username}\n" \
-                      f"- ID: {user.id}"
+                f"- Имя: {user.full_name}\n" \
+                f"- Username: @{user.username}\n" \
+                f"- ID: {user.id}\n" \
+                f"- Category: Telegram\n" \
+                f"- Priority: 1"
     elif message.forward_from_chat:  # Если сообщение переслано из канала или группы
         chat = message.forward_from_chat
         source_type = "канала" if chat.type == "channel" else "группы"
         source_info = f"Сообщение переслано из {source_type}:\n" \
-                      f"- Название: {chat.title}\n" \
-                      f"- Username: @{chat.username if chat.username else 'отсутствует'}\n" \
-                      f"- ID: {chat.id}"
+                f"- Название: {chat.title}\n" \
+                f"- Username: @{chat.username if chat.username else 'отсутствует'}\n" \
+                f"- ID: {chat.id}"\
+                f"- Category: Telegram\n" \
+                f"- Priority: 2"
     else:
         social_network_type = __detect_social_media_link(text=message.text)
         if social_network_type:
-            source_info = social_network_type
+            source_info = f"{social_network_type}\n"\
+                f"- Category: SocialNetwork\n" \
+                f"- Priority: 3"
 
         else:  # Если информация о пересылке недоступна
             source_info = "Источник пересылки неизвестен или скрыт."
