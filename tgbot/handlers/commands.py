@@ -7,18 +7,21 @@ import copy
 
 import re
 import aiohttp
+from aiogram.types import CallbackQuery
 from bs4 import BeautifulSoup
 
 from aiogram import Router
 from aiogram import types
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
+from aiogram import F
 
 from tgbot.database.models import Url
+import tgbot.database.requests as rq
+import tgbot.keyboards.keyboards as kb
+
 
 router = Router()
-
-import tgbot.database.requests as rq
 
 
 template_entry = {
@@ -63,8 +66,34 @@ CATEGORIES = {
 async def start_command_handler(message: types.Message, state: FSMContext):
     user = await __get_user(message=message)
     greeting_text = f"С возвращением, {user.name}! Чем могу помочь?"
+    await message.answer(greeting_text, reply_markup=kb.main)
 
-    await message.answer(greeting_text)
+
+@router.message(F.text == "Категории")
+async def categories(message: types.Message):
+    await message.answer(text='Выберите категорию', reply_markup=await kb.categories())
+
+@router.message(F.text == "Приоритеты")
+async def categories(message: types.Message):
+    await message.answer(text='Выберите приоритет', reply_markup=await kb.priorities())
+
+
+@router.callback_query(F.data.startswith('category_'))
+async def category(callback: CallbackQuery):
+    await callback.answer('Вы выбрали категорию')
+    await callback.answer(callback.data)
+    logging.error(f"comands.category. callback_data={callback.data}")
+    await callback.message.answer(text='Выберите url по категории',
+                                  reply_markup=await kb.urls_by_category(callback.data.split('_')[1]))
+
+
+@router.callback_query(F.data.startswith('priority_'))
+async def priority(callback: CallbackQuery):
+    await callback.answer('Вы выбрали приоритет')
+    await callback.answer(callback.data)
+    logging.error(f"comands.category. callback_data={callback.data}")
+    await callback.message.answer(text='Выберите url по приоритету',
+                                  reply_markup=await kb.urls_by_priority(callback.data.split('_')[1]))
 
 
 # Обработчик для любых сообщений
