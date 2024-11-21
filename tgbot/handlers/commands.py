@@ -147,10 +147,6 @@ async def __get_source_info(message: types.Message):
     return source_info
 
 def __detect_social_media_link(text: str):
-    """
-    Определяет наличие ссылок из популярных соцсетей в тексте.
-    Возвращает список найденных источников.
-    """
     for platform, pattern in SOCIAL_MEDIA_PATTERNS.items():
         if re.search(pattern, text):
             return platform
