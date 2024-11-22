@@ -17,8 +17,8 @@ class User(Base):
     __tablename__ = 'users'
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tg_id: Mapped[int] = mapped_column(BigInteger)
-    name: Mapped[String] = mapped_column(String(100), nullable=True)
-
+    name: Mapped[String] = mapped_column(String(50), nullable=True)
+    full_name: Mapped[String] = mapped_column(String(100), nullable=True)
 
 class Category(Base):
     __tablename__ = 'categories'
@@ -33,7 +33,7 @@ class Priority(Base):
 class Url(Base):
     __tablename__ = 'urls'
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    url: Mapped[str] = mapped_column(String(100), nullable=True)
+    url: Mapped[str] = mapped_column(String(1000), nullable=True)
     title: Mapped[str] = mapped_column(String(100), nullable=True)
     source: Mapped[str] = mapped_column(String(100), nullable=True)
     category: Mapped[int] = mapped_column(ForeignKey('categories.id'))

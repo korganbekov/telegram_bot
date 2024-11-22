@@ -8,7 +8,7 @@ CATEGORIES = {
     "Социальные сети": ["facebook", "instagram", "vk", "telegram", "twitter", "tiktok", "vk"],
     "Видео": ["youtube", "vimeo", "twitch"],
     "Новостные сайты": ["bbc", "cnn", "reuters"],
-    "Интернет-магазины": ["amazon", "ebay", "wildberries", "ozon"],
+    "Интернет-магазины": ["amazon", "ebay", "wildberries", "ozon", "alibaba"],
     "Почта": ["mail", "hotmail", "gmail"],
     "Файловые хранилища": ["drive.google.com", "dropbox.com", "yadi.sk"],
 }

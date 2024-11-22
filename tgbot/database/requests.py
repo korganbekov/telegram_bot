@@ -3,7 +3,7 @@ import logging
 from tgbot.database.models import async_session
 from tgbot.database.models import User, Category, Url, Priority
 
-from sqlalchemy import select, and_
+from sqlalchemy import select
 
 
 async def get_categories():
@@ -15,75 +15,60 @@ async def get_priorities():
     async with async_session() as session:
         return await session.scalars(select(Priority))
 
-async def get_category(id=3):
+
+async def get_category(category_id):
     async with async_session() as session:
-        category = await session.scalar(select(Category).where(Category.id == id))
-        if not category:
-            category = await session.scalar(select(Category).where(Category.id == 3))
-        return category
+        return await session.scalar(select(Category).where(Category.id == category_id))
+
+
+async def get_priority(priority_id):
+    async with async_session() as session:
+        return await session.scalar(select(Priority).where(Priority.id == priority_id))
+
 
 async def get_category_by_text(category_text):
     async with async_session() as session:
         category = await session.scalar(select(Category).where(Category.category == category_text))
+
         if not category:
-            category = await session.scalar(select(Category).where(Category.id == 3))
+            session.add(Category(category=category_text))
+            await session.commit()
+            category = await session.scalar(select(Category).where(Category.category == category_text))
+
         return category
 
-async def get_priority(id=3):
-    async with async_session() as session:
-        priority = await session.scalar(select(Priority).where(Priority.id == id))
-        if not priority:
-            priority = await session.scalar(select(Category).where(Priority.id == 3))
-        return priority
 
 async def get_priority_by_text(priority_text):
     async with async_session() as session:
         priority = await session.scalar(select(Priority).where(Priority.priority == priority_text))
+
         if not priority:
-            priority = await session.scalar(select(Category).where(Priority.id == 3))
+            session.add(Priority(priority=priority_text))
+            await session.commit()
+            priority = await session.scalar(select(Priority).where(Priority.priority == priority_text))
+
         return priority
 
-async def get_user(tg_id):
+
+async def get_user(tg_id, name="", full_name=""):
     async with async_session() as session:
         user = await session.scalar(select(User).where(User.tg_id == tg_id))
 
         if not user:
-            session.add(User(tg_id=tg_id))
+            session.add(User(tg_id=tg_id, name=name, full_name=full_name))
             await session.commit()
             user = await session.scalar(select(User).where(User.tg_id == tg_id))
 
         return user
 
 
-
-
-async def get_url(id):
+async def get_urls_by_category(category_id):
     async with async_session() as session:
-        return await session.scalar(select(Url).where(Url.id == id))
+        return await session.scalars(select(Url).where(Url.category == category_id))
 
-
-async def get_urls_by_category(id):
+async def get_urls_by_priority(priority_id):
     async with async_session() as session:
-        return await session.scalars(select(Url).where(Url.category == id))
-
-async def get_urls_by_priority(id):
-    async with async_session() as session:
-        return await session.scalars(select(Url).where(Url.priority == id))
-
-
-async def get_urls(filter):
-    # logging.info(f'requests.get_urls({filter})')
-    async with async_session() as session:
-        conditions = [
-            getattr(Url, key) == value
-            for key, value in filter.items()
-            if value is not None  # Добавляем только те, которые не None
-        ]
-
-        query = select(Url).where(and_(*conditions)) if conditions else select(Url)
-        result = await session.scalars(query)
-        # logging.info(f'requests.get_urls. len(result): {len(result.all())}')
-        return result.all()
+        return await session.scalars(select(Url).where(Url.priority == priority_id))
 
 
 async def save_url(url: Url):

@@ -55,11 +55,13 @@ _user = None
 
 _message = None
 
+_urls = None
+
 @router.message(CommandStart())
 async def start_command_handler(message: types.Message):
     user = await __get_user(message=message)
     _user = user
-    greeting_text = f"С возвращением, {user.name}! Чем могу помочь?"
+    greeting_text = f"С возвращением, {user.full_name}! Чем могу помочь?"
     await message.answer(greeting_text, reply_markup=kb.main)
 
 
@@ -93,16 +95,18 @@ async def priority(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("save_url_"))
 async def save_url(callback: CallbackQuery):
     logging.error(f"save_url.callback.data: {callback.data}")
-    url = callback.data.split("_")[2]
+    idx = int(callback.data.split("_")[2])
+    if _urls is None or type(_urls) is not list:
+        return
+
+    url = _urls[idx]
 
     user = _user
     title = await __fetch_page_title(url)
     timestamp_utc = int(datetime.now(timezone.utc).timestamp())
-    # source_info, category, proirity = await __get_source_info_category_priority(message=callback.message)
+    _source_info = await __get_source_info(message=callback.message)
 
     source_info = _source_info
-    category = _category
-    priority = _priority
     str_category, str_priority = await predict_category_and_priority(title)
 
     category = await rq.get_category_by_text(str_category)
@@ -130,6 +134,7 @@ async def cancel_save(callback: CallbackQuery):
     await callback.message.edit_text("Сохранение отменено.")
     await callback.answer()
 
+
 # Обработчик для любых сообщений
 @router.message()
 async def handle_any_message(message: types.Message):
@@ -140,18 +145,20 @@ async def handle_any_message(message: types.Message):
 
     global _user
 
+    global _urls
+
     # Найти все URL в тексте
-    urls = re.findall(url_pattern, message.text)
-    if not urls:
+    _urls = re.findall(url_pattern, message.text)
+    if not _urls:
         await message.answer("Ссылка не найдена в сообщении.")
         return
 
-    _source_info, _category, _priority = await __get_source_info_category_priority(message=message)
+    # _source_info, _category, _priority = await __get_source_info_category_priority(message=message)
     _user = await __get_user(message=message)
     _message = message
 
     # Отправить сообщение с кнопками
-    await message.answer("Выберите ссылки для сохранения:", reply_markup=await kb.urls_to_save(urls))
+    await message.answer("Выберите ссылки для сохранения:", reply_markup=await kb.urls_to_save(_urls))
 
 
 async def __fetch_page_title(url: str) -> str:
@@ -172,15 +179,14 @@ async def __fetch_page_title(url: str) -> str:
         print(f"Ошибка при обработке {url}: {e}")
         return None
 
-async def __get_source_info_category_priority(message: types.Message):
+
+async def __get_source_info(message: types.Message):
     if message.forward_from:  # Если сообщение переслано от пользователя
         user = message.forward_from
         source_info = f"Сообщение переслано от пользователя:\n" \
                 f"- Имя: {user.full_name}\n" \
                 f"- Username: @{user.username}\n" \
                 f"- ID: {user.id}"
-        category = await rq.get_category(1)
-        priority = await rq.get_priority(1)
     elif message.forward_from_chat:  # Если сообщение переслано из канала или группы
         chat = message.forward_from_chat
         source_type = "канала" if chat.type == "channel" else "группы"
@@ -188,21 +194,15 @@ async def __get_source_info_category_priority(message: types.Message):
                 f"- Название: {chat.title}\n" \
                 f"- Username: @{chat.username if chat.username else 'отсутствует'}\n" \
                 f"- ID: {chat.id}"
-        category = await rq.get_category(1)
-        priority = await rq.get_priority(1)
     else:
         social_network_type = __detect_social_media_link(text=message.text)
         if social_network_type:
             source_info = f"{social_network_type}"
-            category = await rq.get_category(2)
-            priority = await rq.get_priority(2)
 
         else:  # Если информация о пересылке недоступна
             source_info = "Источник пересылки неизвестен или скрыт."
-            category = await rq.get_category(3)
-            priority = await rq.get_priority(3)
 
-    return source_info, category.id, priority.id
+    return source_info
 
 
 def __detect_social_media_link(text: str):
@@ -212,8 +212,9 @@ def __detect_social_media_link(text: str):
                 return key
     return None
 
+
 async def __get_user(message: types.Message):
-    user = await rq.get_user(message.from_user.id)
-    name = user.name
+    user = await rq.get_user(message.from_user.id, message.from_user.username, message.from_user.full_name)
+    name = user.full_name
     logging.info(f"name: {name}")
     return user
