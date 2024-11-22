@@ -1,7 +1,7 @@
 import logging
 
-from tgbot.database.models import async_session
-from tgbot.database.models import User, Category, Url, Priority
+from tgbot.models.models import async_session
+from tgbot.models.models import User, Category, Url, Priority
 
 from sqlalchemy import select
 
@@ -14,16 +14,6 @@ async def get_categories():
 async def get_priorities():
     async with async_session() as session:
         return await session.scalars(select(Priority))
-
-
-async def get_category(category_id):
-    async with async_session() as session:
-        return await session.scalar(select(Category).where(Category.id == category_id))
-
-
-async def get_priority(priority_id):
-    async with async_session() as session:
-        return await session.scalar(select(Priority).where(Priority.id == priority_id))
 
 
 async def get_category_by_text(category_text):
@@ -72,25 +62,20 @@ async def get_urls_by_priority(priority_id):
 
 
 async def save_url(url: Url):
-    logging.warning('save_url')
+    msg = f"url: {url.url}, title: {url.title} is"
     try:
         async with (async_session() as session):
-            logging.warning('save_url_1')
-            logging.info(f"url.id: {url.id}")
-            logging.info(f"url.title: {url.title})")
-            logging.info(f"url.user {url.user}")
-            logging.info(f"url.name: {url.url}")
-            logging.info(f"url.source: {url.source}")
-            logging.info(f"url.category: {url.category}, ")
-            logging.info(f"url.priority: {url.priority}, ")
-            logging.info(f"url.timestamp={url.timestamp}")
-
             session.add(url)
             await session.commit()
-            # message = f"url: {url.url}, title: {url.title} is saved to DB"
-            # logging.info(message)
+
+            logging.warning(f"{msg} saved to BD")
             return True
     except Exception as e:
-        # message = f"url: {url.url}, title: {url.title} is not saved to DB"
-        # logging.error(message)
+        logging.error(f"{msg} not saved to DB")
         return False
+
+
+async def get_urls_by_text(text):
+    async with async_session() as session:
+        return await session.scalars(select(Url).where(Url.url.text.contains(text)))
+

@@ -1,25 +1,25 @@
-import uuid
-import json
-
 import logging
 from datetime import datetime, timezone
-import copy
 
 import re
 import aiohttp
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 from bs4 import BeautifulSoup
 
 from aiogram import Router
 from aiogram import types
-from aiogram.filters import CommandStart
-from aiogram.fsm.context import FSMContext
+from aiogram.filters import CommandStart, state
 from aiogram import F
 
-from tgbot.database.models import Url
+from tgbot.models.models import Url
 import tgbot.database.requests as rq
 import tgbot.keyboards.keyboards as kb
 from tgbot.llm.llm import predict_category_and_priority
+
+from tgbot.data.config import CATEGORIES_COMMANDS as CATEGORIES
+from tgbot.states.states import SearchState
+from aiogram.fsm import state
 
 router = Router()
 
@@ -27,47 +27,36 @@ router = Router()
 url_pattern = r'https?://(?:www\.)?[^\s/$.?#].[^\s]*'
 
 # Регулярные выражения для распознавания ссылок соцсетей
-SOCIAL_MEDIA_PATTERNS = {
-    "YouTube": r"(https?://)?(www\.)?(youtube\.com|youtu\.be)/",
-    "Instagram": r"(https?://)?(www\.)?instagram\.com/",
-    "Twitter": r"(https?://)?(www\.)?twitter\.com/",
-    "Facebook": r"(https?://)?(www\.)?facebook\.com/",
-    "TikTok": r"(https?://)?(www\.)?tiktok\.com/",
-    "VK": r"(https?://)?(www\.)?vk\.com/",
-    "Telegram": r"(https?://)?(t\.me|telegram\.me)/"
+SOCIAL_PATTERNS = {
+    "facebook": r"(?:https?://)?(?:www\.)?(facebook\.com|fb\.com)",
+    "instagram": r"(?:https?://)?(?:www\.)?(instagram\.com)",
+    "twitter": r"(?:https?://)?(?:www\.)?(twitter\.com)",
+    "linkedin": r"(?:https?://)?(?:www\.)?(linkedin\.com)",
+    "youtube": r"(?:https?://)?(?:www\.)?(youtube\.com|youtu\.be)",
+    "tiktok": r"(?:https?://)?(?:www\.)?(tiktok\.com)",
+    "vk": r"(?:https?://)?(?:www\.)?(vk\.com)",
+    "ok": r"(?:https?://)?(?:www\.)?(ok\.ru)",
+    "reddit": r"(?:https?://)?(?:www\.)?(reddit\.com)",
+    "pinterest": r"(?:https?://)?(?:www\.)?(pinterest\.com)",
+    "snapchat": r"(?:https?://)?(?:www\.)?(snapchat\.com)",
 }
 
-# Словарь категорий и соответствующих паттернов
-CATEGORIES = {
-    "Социальные сети": [r"instagram\.com", r"facebook\.com", r"twitter\.com", r"tiktok\.com", r"vk\.*"],
-    "Видео": [r"youtube\.com", r"vimeo\.com", r"twitch\.tv"],
-    "Новостные сайты": [r"bbc\.com", r"cnn\.com"],
-    "Интернет-магазины": [r"amazon\.com", r"ebay\.com", r"wildberries\.ru"],
-    "Образование": [r"coursera\.org", r"wikipedia\.org", r"udemy\.com"],
-    "Файловые хранилища": [r"drive\.google\.com", r"dropbox\.com", r"yadi\.sk"],
-    "Почта": [r"gmail\.com", r"mail\.ru", r"hotmail\.*"],
-}
-
-_source_info = None
-_category = None
-_priority = None
-_user = None
 
 _message = None
-
 _urls = None
+
 
 @router.message(CommandStart())
 async def start_command_handler(message: types.Message):
-    user = await __get_user(message=message)
-    _user = user
-    greeting_text = f"С возвращением, {user.full_name}! Чем могу помочь?"
+    _user = await rq.get_user(message.from_user.id, message.from_user.username, message.from_user.full_name)
+    greeting_text = f"С возвращением, {_user.full_name}! Чем могу помочь?"
     await message.answer(greeting_text, reply_markup=kb.main)
 
 
 @router.message(F.text == "Категории")
 async def categories(message: types.Message):
     await message.answer(text='Выберите категорию', reply_markup=await kb.categories())
+
 
 @router.message(F.text == "Приоритеты")
 async def priorities(message: types.Message):
@@ -104,17 +93,23 @@ async def save_url(callback: CallbackQuery):
     user = _user
     title = await __fetch_page_title(url)
     timestamp_utc = int(datetime.now(timezone.utc).timestamp())
-    _source_info = await __get_source_info(message=callback.message)
 
-    source_info = _source_info
-    str_category, str_priority = await predict_category_and_priority(title)
+    source_info_telegram_forwarded = __get_source_telegram_forwarded(_message)
+    source_info_social_network = __get_source_social_network(message=_message)
+    logging.error(f"source_info_social_network: {source_info_social_network}")
+    logging.error(f"source_info_telegram_forwarded: {source_info_telegram_forwarded}")
 
-    category = await rq.get_category_by_text(str_category)
-    priority = await rq.get_priority_by_text(str_priority)
+    source_info = f"{source_info_telegram_forwarded}\n" if source_info_telegram_forwarded else ""
+    source_info += source_info_social_network if source_info_social_network else ""
+    source_info = source_info if source_info else "Источник пересылки неизвестен или скрыт."
+    logging.error(f"source_info: {source_info}")
 
-    logging.error(f"save_url.URL: {url}\nКатегория Str: {category}\nПриоритет Str: {priority}")
-    logging.error(f"save_url.URL: {url}\nКатегория: {category.category}\nПриоритет: {priority.priority}")
-    logging.error(f"save_url.URL: {url}\nКатегория.Id: {category.id}\nПриоритет.Id: {priority.id}")
+    # полученное с помощью LLM атегория и приоритет
+    predicted_category, predicted_priority = await predict_category_and_priority(title)
+
+    category = await rq.get_category_by_text(predicted_category)
+    priority = await rq.get_priority_by_text(predicted_priority)
+
     _url = Url()
     _url.user = user.tg_id
     _url.priority = priority.id
@@ -129,22 +124,11 @@ async def save_url(callback: CallbackQuery):
     await callback.answer(f"Ссылка сохранена: {url}")
 
 
-@router.callback_query(F.data == "cancel_save")
-async def cancel_save(callback: CallbackQuery):
-    await callback.message.edit_text("Сохранение отменено.")
-    await callback.answer()
-
-
 # Обработчик для любых сообщений
 @router.message()
 async def handle_any_message(message: types.Message):
     global _message
-    global _source_info
-    global _category
-    global _priority
-
     global _user
-
     global _urls
 
     # Найти все URL в тексте
@@ -153,20 +137,17 @@ async def handle_any_message(message: types.Message):
         await message.answer("Ссылка не найдена в сообщении.")
         return
 
-    # _source_info, _category, _priority = await __get_source_info_category_priority(message=message)
-    _user = await __get_user(message=message)
+    _user = await rq.get_user(message.from_user.id, message.from_user.username, message.from_user.full_name)
     _message = message
 
     # Отправить сообщение с кнопками
     await message.answer("Выберите ссылки для сохранения:", reply_markup=await kb.urls_to_save(_urls))
 
 
-async def __fetch_page_title(url: str) -> str:
+async def __fetch_page_title(url):
     try:
-        # Асинхронная загрузка страницы
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                # logging.error(f"url: {url}, response.status: {response.status}")
                 if response.status == 200:
                     # Парсинг HTML с помощью BeautifulSoup
                     html = await response.text()
@@ -180,8 +161,11 @@ async def __fetch_page_title(url: str) -> str:
         return None
 
 
-async def __get_source_info(message: types.Message):
-    if message.forward_from:  # Если сообщение переслано от пользователя
+def __get_source_telegram_forwarded(message: types.Message):
+    source_info = None
+
+    # Если сообщение переслано от пользователя
+    if message.forward_from:
         user = message.forward_from
         source_info = f"Сообщение переслано от пользователя:\n" \
                 f"- Имя: {user.full_name}\n" \
@@ -194,15 +178,12 @@ async def __get_source_info(message: types.Message):
                 f"- Название: {chat.title}\n" \
                 f"- Username: @{chat.username if chat.username else 'отсутствует'}\n" \
                 f"- ID: {chat.id}"
-    else:
-        social_network_type = __detect_social_media_link(text=message.text)
-        if social_network_type:
-            source_info = f"{social_network_type}"
-
-        else:  # Если информация о пересылке недоступна
-            source_info = "Источник пересылки неизвестен или скрыт."
 
     return source_info
+
+
+def __get_source_social_network(message: types.Message):
+    return __detect_social_media_link(text=message.text)
 
 
 def __detect_social_media_link(text: str):
@@ -210,11 +191,8 @@ def __detect_social_media_link(text: str):
         for entry in category_entry:
             if re.search(entry, text):
                 return key
+
     return None
 
 
-async def __get_user(message: types.Message):
-    user = await rq.get_user(message.from_user.id, message.from_user.username, message.from_user.full_name)
-    name = user.full_name
-    logging.info(f"name: {name}")
-    return user
+

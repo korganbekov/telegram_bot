@@ -1,9 +1,9 @@
 import logging
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton
 
-from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from tgbot.database.requests import get_categories, get_priorities, get_urls_by_category, get_urls_by_priority
 
