@@ -1,6 +1,8 @@
 import logging
 from typing import List
 
+import sqlalchemy
+
 from tgbot.models.models import async_session
 from tgbot.models.models import User, Category, Url, Priority
 
@@ -66,15 +68,29 @@ async def get_urls_by_priority(priority_id):
 async def save_url(url: Url):
     msg = f"url: {url.url}, title: {url.title} is"
     try:
+        logging.warning(f"url.id: {url.id},"
+                        f"url.title: {url.title},"
+                        f"url.url: {url.url},"
+                        f"url.category: {url.category},"
+                        f"url.priority: {url.priority},"
+                        f"url.source: {url.source},"
+                        f"url.user: {url.user},"
+                        f"url.timestamp: {url.timestamp}")
         async with (async_session() as session):
             session.add(url)
             await session.commit()
 
             logging.warning(f"{msg} saved to BD")
-            return True
+            return f"Данные сохранены в БД"
+    except sqlalchemy.exc as e:
+        error_text = f"Данные не сохранены. Ошибка: {e.args[0]}"
+        logging.error(e)
     except Exception as e:
-        logging.error(f"{msg} not saved to DB")
-        return False
+        error_text = f"Данные не сохранены. Ошибка: {e.args[0]}"
+        logging.error(e)
+
+    logging.error(f"{msg} not saved to DB")
+    return error_text
 
 
 async def get_urls_by_text(text) -> List[Url]:
