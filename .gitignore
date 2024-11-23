@@ -137,3 +137,6 @@ credentials.json
 .idea
 main.py
 cache
+result.json
+/tgbot/handlers/commands_old.py
+#/tgbot/handlers/commands.py

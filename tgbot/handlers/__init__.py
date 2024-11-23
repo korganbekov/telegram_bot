@@ -1,7 +1,7 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
 
-from tgbot.handlers.commands import start_command_handler
+from tgbot.handlers.commands_old import start_command_handler
 
 
 def setup() -> Router:

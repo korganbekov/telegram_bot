@@ -11,7 +11,10 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from tgbot import handlers
 from tgbot.data import config
-
+from tgbot.models.models import async_main as models_async_main
+from tgbot.database.initialize import async_main as init_async_main
+from tgbot.handlers.commands_old import router
+from tgbot.handlers.commands import router as sandbox_router
 
 def setup_logging():
     log_level = logging.INFO
@@ -44,6 +47,12 @@ async def aiogram_on_shutdown_polling(dispatcher: Dispatcher, bot: Bot) -> None:
 
 async def main():
     setup_logging()
+
+    # создание таблиц
+    await models_async_main()
+    # нициализация справочников
+    await init_async_main()
+
     session = AiohttpSession(
         json_loads=orjson.loads,
     )
@@ -59,7 +68,8 @@ async def main():
     dp = Dispatcher(
         storage=storage,
     )
-
+    # dp.include_router(router=router)
+    dp.include_router(router=sandbox_router)
     dp.startup.register(aiogram_on_startup_polling)
     dp.shutdown.register(aiogram_on_shutdown_polling)
 
@@ -67,4 +77,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nGoodbye!")
