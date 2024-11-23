@@ -13,8 +13,8 @@ from tgbot import handlers
 from tgbot.data import config
 from tgbot.models.models import async_main as models_async_main
 from tgbot.database.initialize import async_main as init_async_main
-from tgbot.handlers.commands import router
-from tgbot.handlers.handlers_sandbox import router as sandbox_router
+from tgbot.handlers.commands_old import router
+from tgbot.handlers.commands import router as sandbox_router
 
 def setup_logging():
     log_level = logging.INFO

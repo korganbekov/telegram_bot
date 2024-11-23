@@ -139,4 +139,4 @@ main.py
 cache
 result.json
 /tgbot/handlers/commands_old.py
-#/tgbot/handlers/handlers_sandbox.py
+#/tgbot/handlers/commands.py
