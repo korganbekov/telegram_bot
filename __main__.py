@@ -14,7 +14,7 @@ from tgbot.data import config
 from tgbot.models.models import async_main as models_async_main
 from tgbot.database.initialize import async_main as init_async_main
 from tgbot.handlers.commands import router
-
+from tgbot.handlers.handlers_sandbox import router as sandbox_router
 
 def setup_logging():
     log_level = logging.INFO
@@ -68,7 +68,8 @@ async def main():
     dp = Dispatcher(
         storage=storage,
     )
-    dp.include_router(router=router)
+    # dp.include_router(router=router)
+    dp.include_router(router=sandbox_router)
     dp.startup.register(aiogram_on_startup_polling)
     dp.shutdown.register(aiogram_on_shutdown_polling)
 

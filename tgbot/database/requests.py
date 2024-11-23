@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 from tgbot.models.models import async_session
 from tgbot.models.models import User, Category, Url, Priority
@@ -56,6 +57,7 @@ async def get_urls_by_category(category_id):
     async with async_session() as session:
         return await session.scalars(select(Url).where(Url.category == category_id))
 
+
 async def get_urls_by_priority(priority_id):
     async with async_session() as session:
         return await session.scalars(select(Url).where(Url.priority == priority_id))
@@ -75,7 +77,7 @@ async def save_url(url: Url):
         return False
 
 
-async def get_urls_by_text(text):
+async def get_urls_by_text(text) -> List[Url]:
     async with async_session() as session:
-        return await session.scalars(select(Url).where(Url.url.text.contains(text)))
-
+        result = await session.scalars(select(Url).where(Url.url.contains(text)))
+        return list(result)
