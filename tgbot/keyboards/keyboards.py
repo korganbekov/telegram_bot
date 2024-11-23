@@ -9,7 +9,8 @@ from tgbot.database.requests import get_categories, get_priorities, get_urls_by_
 
 main = ReplyKeyboardMarkup(resize_keyboard=True, input_field_placeholder="Выберите пункт меню...", keyboard=[
     [KeyboardButton(text="Категории")],
-    [KeyboardButton(text="Приоритеты")]
+    [KeyboardButton(text="Приоритеты")],
+    [KeyboardButton(text="Поиск ссылки по тексту")]
 ])
 
 
